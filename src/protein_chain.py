@@ -16,7 +16,6 @@ from typing import Sequence, TypeVar, Union
 PathLike = Union[str, Path, CloudPath]
 PathOrBuffer = Union[PathLike, io.StringIO]
 
-
 class WrappedProteinChain(ProteinChain):
 
     """Enable cif file loading, similar to loading pdb.

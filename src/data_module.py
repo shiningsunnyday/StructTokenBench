@@ -95,8 +95,9 @@ class ProteinDataModule(pl.LightningDataModule):
         assert torch.distributed.is_initialized()
         process_global_rank = torch.distributed.get_rank()
         world_size = torch.distributed.get_world_size()
-        dataset.shard(shard_idx=process_global_rank, num_shards=world_size)
-
+        # dataset.shard(shard_idx=process_global_rank, num_shards=world_size)
+    
+        breakpoint()
         if self.precompute_tokens:
             # precompute and cache the token ids:
             self.py_logger.info(
@@ -107,6 +108,99 @@ class ProteinDataModule(pl.LightningDataModule):
         if dataset.data_name not in ["ConformationalSwitchDataset", "CASP14Dataset", "CAMEODataset"]:
             for i in tqdm(range(len(dataset.data))):
                 assert len(dataset.data[i]["real_seqs"]) == len(dataset.data[i]["token_ids"])
+
+
+        ## DELETE THIS. for processing   
+        # PRO TIP: get token encoder to return dummy tokens without inferencing the encoder, see ./tokenizer.py
+        from pathlib import Path
+        import json
+        data_name = self.data_args.data_name
+        target_field = self.data_args.target_field
+        out_path = Path(__file__).parents[2] / f"data/struct_token_bench/{data_name}_{target_field}_{split}.jsonl"
+        assert len(dataset) == len(dataset.data)
+        if data_name in ["ProteinGLUEEpitopeRegionDataset", "ProteinShakeBindingSiteDataset", "InterProFunctionDataset", "BioLIP2FunctionDataset", "TapeRemoteHomologyDataset", "AtlasDataset"]:
+            if data_name == "ProteinGLUEEpitopeRegionDataset":
+                store_dir = "proteinglue"
+            elif data_name == "ProteinShakeBindingSiteDataset":
+                store_dir = "proteinshake"
+            elif data_name == "InterProFunctionDataset":
+                if target_field == "binding_label":
+                    store_dir = "interpro/binding"
+                elif target_field == "activesite_label":
+                    store_dir = "interpro/activesite"
+                elif target_field == "conservedsite_label":
+                    store_dir = "interpro/conservedsite"
+                elif target_field == "repeat_label":
+                    store_dir = "interpro/repeat"
+                else:
+                    raise NotImplementedError
+            elif data_name == "BioLIP2FunctionDataset":
+                if target_field == "binding_label":
+                    store_dir = "biolip2/binding"
+                elif target_field == "catalytic_label":
+                    store_dir = "biolip2/catalytic"                
+                else:
+                    raise NotImplementedError
+            elif data_name == "TapeRemoteHomologyDataset":
+                if target_field == "fold_label":
+                    store_dir = "homo"
+                else:
+                    raise NotImplementedError
+            elif data_name == "AtlasDataset":
+                store_dir = "atlas"
+            else:
+                raise NotImplementedError
+            assert len(dataset[0]) == 3
+            assert 'pdb_chain' in dataset.data[0]
+            if data_name != "AtlasDataset":
+                assert all(item['pdb_id'] == item['pdb_chain'].id for item in dataset.data)
+                assert all(item['chain_id'] == item['pdb_chain'].chain_id for item in dataset.data)
+            with open(out_path, "w+") as f:
+                for item, sample in zip(dataset.data, dataset):
+                    pdb_id, chain_id = item['pdb_id'], item['chain_id']
+                    path = f"/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/data/struct_token_bench/{store_dir}/{pdb_id}_{chain_id}.pdb"
+                    item['pdb_chain'].to_pdb(path)
+                    if 'residue_index' in item:
+                        if len(item['residue_index']) != len(sample[1]):
+                            breakpoint()
+                        fields = {
+                            "pdb_path": path,
+                            "residue_index": item['residue_index'],
+                            target_field: sample[1]
+                        }
+                    else:
+                        if target_field != "fold_label" and len(item['pdb_chain']) != len(sample[1]):
+                            breakpoint()
+                        fields = {
+                            "pdb_path": path,
+                            target_field: sample[1],
+                            "residue_index": item['pdb_chain'].residue_index.tolist()
+                        }                        
+                    if item['residue_range'] != ['']:
+                        fields['residue_range'] = item['residue_range']
+                    try:
+                        f.write(json.dumps(fields) + "\n")
+                    except:
+                        breakpoint()
+        elif data_name == 'ConformationalSwitchDataset':
+            assert all(x['prot1_residue_range'] == [''] for x in dataset.data)
+            assert all(x['prot2_residue_range'] == [''] for x in dataset.data)
+            assert all(item['prot1_pdb_id'] == item['prot1_pdb_chain'].id for item in dataset.data)
+            assert all(item['prot1_chain_id'] == item['prot1_pdb_chain'].chain_id for item in dataset.data)
+            assert all(item['prot2_pdb_id'] == item['prot2_pdb_chain'].id for item in dataset.data)
+            assert all(item['prot2_chain_id'] == item['prot2_pdb_chain'].chain_id for item in dataset.data)            
+            with open(out_path, "w+") as f:
+                for item, sample in zip(dataset.data, dataset):
+                    f.write(json.dumps({
+                        "prot1_pdb_id": item["prot1_pdb_id"],
+                        "prot1_chain_id": item["prot1_chain_id"],
+                        "prot2_pdb_id": item["prot2_pdb_id"],
+                        "prot2_chain_id": item["prot2_chain_id"],                        
+                        target_field: sample[2]
+                    }) + "\n")
+        else:
+            breakpoint()
+        ## end        
         return dataset
 
     def train_dataloader(self):
@@ -157,7 +251,7 @@ class ProteinDataModule(pl.LightningDataModule):
 class PretrainingDataModule(pl.LightningDataModule):
 
     def __init__(self, device: str, seed: int, 
-        micro_batch_size: int, data_args, py_logger, test_only,
+        micro_batch_size: int, data_args, py_logger, test_only, train_eval
     ):
         super().__init__()
 
@@ -172,7 +266,7 @@ class PretrainingDataModule(pl.LightningDataModule):
         if not self.test_only:
             self.all_split_names += ["validation"]
         self.all_split_names += eval(self.data_args.data_name).SPLIT_NAME["test"]
-
+        self.all_split_names += ["train"]
         # to store device: tokenizer map to prevent multiple tokenizers on the same device
         self.device_tokenizer_map = {}
     
@@ -203,11 +297,27 @@ class PretrainingDataModule(pl.LightningDataModule):
             "in_memory": False,
         })
         dataset = eval(self.data_args.data_name)(**kwargs)
+        ## DELETE THIS. for processing
+        dest_dir = f"/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/data/vqvae_pretrain/{split}"
+        os.makedirs(dest_dir, exist_ok=True)
+        if split != "train":
+            count = 0
+            for x in tqdm(dataset.data, desc=f"writing to {dest_dir}"):
+                chain = x['pdb_chain']
+                key = f"{chain.id}_{chain.chain_id}"
+                # 500 bad
+                try:
+                    chain.to_pdb(f"{dest_dir}/{key}.pdb")
+                    count += 1
+                except:
+                    continue
+            print(f"{count}/{len(dataset)} written to {dest_dir}")
+        ## end
         # need to shard the dataset here:
         if torch.distributed.is_initialized():
             process_global_rank = torch.distributed.get_rank()
             world_size = torch.distributed.get_world_size()
-            dataset.shard(shard_idx=process_global_rank, num_shards=world_size)
+            # dataset.shard(shard_idx=process_global_rank, num_shards=world_size)
         return dataset
     
     def train_dataloader(self):
@@ -235,8 +345,8 @@ class PretrainingDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         """Prepare both val and test sets here"""
         loaders = []
-        
-        for split in self.all_split_names:
+        split_names = self.all_split_names
+        for split in split_names:
             if not hasattr(self, f"{split}_hf_dataset"):
                 setattr(self, f"{split}_hf_dataset", self.setup_hf_dataset(split))
 
@@ -248,6 +358,7 @@ class PretrainingDataModule(pl.LightningDataModule):
                 num_workers=self.data_args.num_workers,
                 shuffle=False,
                 pin_memory=True,
+                drop_last=(split=="train"),
                 prefetch_factor=self.data_args.prefetch_factor,
             )
             self.py_logger.info(f"Finished loading {split} data: {len(dataset)} samples")

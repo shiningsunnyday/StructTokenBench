@@ -11,7 +11,6 @@ import torch.distributed as dist
 
 import Bio
 from Bio import PDB
-from biotite.structure.io.pdbx import CIFFile, convert
 import numpy as np
 from Bio.PDB import Chain
 from typing import Literal
@@ -209,7 +208,7 @@ class WrappedProTokensTokenizer():
 
     def __init__(self, device=None):
         self.device = device
-
+        breakpoint()
         dir_name =  os.path.join(os.path.dirname(__file__), "baselines/ProToken")
         self.tokenizer_encoder_1 = init_protoken_model(512, dir_name)
         self.tokenizer_encoder_2 = init_protoken_model(1024, dir_name)
@@ -327,6 +326,7 @@ class WrappedOurPretrainedTokenizer():
         # load
         self.model = VQVAEModel(model_cfg=model_cfg)
         model_states = torch.load(pretrained_ckpt_path, map_location=self.device)["module"]
+        breakpoint()
         new_model_states = {}
         for k,v in model_states.items():
             assert k.startswith("model.")
@@ -384,7 +384,7 @@ class WrappedESM3Tokenizer():
         self.device = device
         
         self.tokenizer_encoder = ESM3_structure_encoder_v0(self.device)
-        self.tokenizer_decoder = ESM3_structure_decoder_v0()
+        self.tokenizer_decoder = ESM3_structure_decoder_v0(self.device)
         
         # we don't need to attach the whole ESM3 model
         # only get the special token ids from the model
@@ -403,11 +403,15 @@ class WrappedESM3Tokenizer():
     def encode_structure(self, pdb_chain, use_continuous=False, use_sequence=False):
         assert use_sequence
         """Reference from https://github.com/evolutionaryscale/esm/blob/95e3c5be8acda407414810ff3aa7d27dbb6e30d3/esm/utils/encoding.py#L60
-        """
-
+        """        
+        ## DELETE THIS, to speed up processing only        
+        # print("encode_structure fast")
+        # structure_tokens = torch.zeros((len(pdb_chain),))
+        # seqs = [Bio.PDB.Polypeptide.one_to_index(x) if x != "X" else 20 for x in pdb_chain.sequence]        
+        # return structure_tokens, np.array(pdb_chain.residue_index), seqs
+        # end        
         coords, plddt, residue_index = pdb_chain.to_structure_encoder_inputs(self.device)
         #coords: (1, L, 37, 3), plddt: (1, L), residue_index: (1, L)
-        
         if not use_continuous:
             _, structure_tokens = self.tokenizer_encoder.encode(coords, residue_index=residue_index) # _, (1, L)
         else:
@@ -420,6 +424,75 @@ class WrappedESM3Tokenizer():
 
         seqs = [Bio.PDB.Polypeptide.one_to_index(x) if x != "X" else 20 for x in pdb_chain.sequence] # total 20 standard AA in Bio
         return structure_tokens, np.array(pdb_chain.residue_index), seqs
+
+
+    def decode_structure(
+        self,
+        structure_tokens: torch.Tensor | np.ndarray,
+        *,
+        sequence_id: torch.Tensor | None = None
+    ):
+        """
+        Decode a batch of structure–token sequences back to 3-D
+        coordinates with the pretrained ESM-VQVAE structure decoder.
+
+        Parameters
+        ----------
+        structure_tokens
+            (B, L) or (L,) tensor / ndarray containing BOS, EOS, PAD, … ids.
+        sequence_id
+            Optional (B, L) tensor specifying chain indices.
+        """
+        # ----------------- input sanitising -----------------------------
+        st = torch.as_tensor(structure_tokens, dtype=torch.long,
+                             device=self.device)
+        if st.dim() == 1:                                # (L,) → (1, L)
+            st = st.unsqueeze(0)
+
+        # ---- NEW: ensure BOS / EOS tokens are present -----------------
+        if not st[:, 0].eq(self.bos_token_id).all():
+            bos = torch.full((st.size(0), 1), self.bos_token_id,
+                             dtype=st.dtype, device=st.device)
+            st = torch.cat([bos, st], dim=1)
+
+            if sequence_id is not None:
+                z = torch.zeros((sequence_id.size(0), 1),
+                                dtype=sequence_id.dtype,
+                                device=sequence_id.device)
+                sequence_id = torch.cat([z, sequence_id], dim=1)
+
+        if not st[:, -1].eq(self.eos_token_id).all():
+            eos = torch.full((st.size(0), 1), self.eos_token_id,
+                             dtype=st.dtype, device=st.device)
+            st = torch.cat([st, eos], dim=1)
+
+            if sequence_id is not None:
+                z = torch.zeros((sequence_id.size(0), 1),
+                                dtype=sequence_id.dtype,
+                                device=sequence_id.device)
+                sequence_id = torch.cat([sequence_id, z], dim=1)
+        # ----------------------------------------------------------------
+
+
+        attention_mask = st.ne(self.pad_token_id)        # PAD=0 → mask=0
+
+        # -------------------- actual decoding --------------------------
+        with torch.no_grad():                            # no gradients needed
+            out = self.tokenizer_decoder.decode(
+                structure_tokens=st,
+                attention_mask=attention_mask,
+                sequence_id=sequence_id,
+            )
+        # out contains:
+        #   • tensor7_affine  – rigid frame (B, L, 7)
+        #   • bb_pred         – (B, L, 4, 3) ideal backbone in local frame
+        #   • plddt / ptm / pae – confidence metrics
+
+        # ------------- optional rigid-frame → atom coordinates ----------
+        # We try to convert the rigid representation to atom-37
+        # coordinates.  When the helper modules are missing we fall back
+        # to the translation component (i.e. predicted Cα position).
+        return out
     
     def hijack_continuous_reprs(self, coords: torch.Tensor,
         attention_mask: torch.Tensor | None = None,

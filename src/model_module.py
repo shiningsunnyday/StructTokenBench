@@ -267,8 +267,9 @@ class SequenceClassificationModel(ProceedingBaseModel):
                 ret = (loss_and_metrics, logits, targets)
         return ret 
     
-    def forward(self, input_list, targets=None):
-
+    def forward(self, input_list, targets=None):        
+        import sys
+        sys.exit(1)
         input_ids, input_mask, feature = self.inference_feature(input_list)
 
         if self.is_global_or_local == "global":
@@ -292,7 +293,7 @@ class ZeroShotCodebookUtilityModel(ProceedingBaseModel):
         self.d_model = d_model
         self.codebook_embedding = codebook_embedding # [codebook_size, codebook_embed_size]
     
-    def forward(self, input_list, target=None):
+    def forward(self, input_list, target=None):        
         input_ids, input_mask = input_list
         metrics = get_codebook_utility(input_ids[~input_mask], self.codebook_embedding.to(input_ids.device))
 
@@ -328,7 +329,7 @@ class ZeroshotProximityModel(ProceedingBaseModel):
             embed = F.normalize(embed, p=2, dim=-1)
             embed = embed.to(torch.float16)
             sim_score = torch.matmul(embed, embed.T)
-            sim_score = sim_score.numpy() * 100
+            sim_score = (sim_score.numpy() * 100).astype(np.int32)
             real_num_tokens = sim_score.shape[0]
             self.real_num_tokens = real_num_tokens
             self.alphabet = Alphabet(list(range(real_num_tokens)))
@@ -345,7 +346,7 @@ class ZeroshotProximityModel(ProceedingBaseModel):
         prot1_input_ids, prot2_input_ids = input_list
         # [B, L1], [B, L2] for discretized tokenizers
         # [B, L1, hidden_dim], [B, L2, hidden_dim] for continuous tokenizers
-
+        breakpoint()
         bsz = prot1_input_ids.shape[0]
         score_list = []
         for i in range(bsz):
@@ -420,7 +421,7 @@ class PlModel(pl.LightningModule):
         self.trainer.strategy.config["train_micro_batch_size_per_gpu"] = self.optimizer_cfg.micro_batch_size
         self.model = model_init_fn(self.trainer, self.model_cfg, 
                         codebook_embedding=self.codebook_embedding)
-        
+
         # get time here for first iteration at batch 0
         # logged in on_train_batch_end
         self._last_logged_batch_start_time = time.monotonic()
@@ -498,8 +499,7 @@ class PlModel(pl.LightningModule):
             **opt_ret,
         }
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):        
         split = self.all_split_names[dataloader_idx]
         outputs = self._valid_or_test_step(batch, batch_idx, split=split)
         getattr(self, f"{split}_step_outputs").append(outputs)

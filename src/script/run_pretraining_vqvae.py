@@ -20,7 +20,7 @@ for name in all_baseline_names:
         sys.path.append(os.path.join(exc_dir_baseline, name))
 sys.path.append(exc_dir_baseline)
 
-
+import logging
 import data_module
 from util import setup_loggings
 
@@ -68,6 +68,8 @@ def main(cfg):
         logger.info(
             f"Resuming from checkpoint {cfg.model.ckpt_path}. "
         )
+    else:
+        cfg.model.ckpt_path = None
 
     # set seed before initializing models
     pl.seed_everything(cfg.optimization.seed)
@@ -83,6 +85,7 @@ def main(cfg):
         data_args=cfg.data,
         py_logger=logger,
         test_only=getattr(cfg, "test_only", False),
+        train_eval=True # for metrics on train
     )
     datamodule.setup()
 
@@ -99,8 +102,7 @@ def main(cfg):
 
     # training pipeline
     if not getattr(cfg, "validate_only", False) and not getattr(cfg, "test_only", False):
-        logger.info("*********** start training ***********\n\n")
-        
+        logger.info("*********** start training ***********\n\n")                
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.model.ckpt_path)
         if torch.distributed.is_initialized():
             torch.distributed.barrier()

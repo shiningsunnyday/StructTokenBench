@@ -25,7 +25,7 @@ model:
         n_heads: 1
         v_heads: 128
         n_layers: 2
-        d_out: 128
+        d_out: 1024
     decoder:
         d_model: 1024
         n_heads: 16

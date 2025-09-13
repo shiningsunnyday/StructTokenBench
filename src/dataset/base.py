@@ -15,8 +15,11 @@ from biotite.sequence import Alphabet, Sequence, GeneralSequence
 from biotite.sequence.align import align_optimal, SubstitutionMatrix
 
 from protein_chain import WrappedProteinChain
-from tokenizer import *
+from biotite.structure.io.pdbx import CIFFile, convert
+from tokenizer import ALL_TOKENIZER_TYPE, WrappedESM3Tokenizer, WrappedFoldSeekTokenizer, WrappedProTokensTokenizer, WrappedOurPretrainedTokenizer, WrappedAIDOTokenizer, WrappedMIFTokenizer, WrappedProteinMPNNTokenizer, WrappedCheapS1D64Tokenizer
 import util
+import multiprocessing as mp
+
 
 def convert_chain_id(pdb_path, chain_id):
 
@@ -38,6 +41,7 @@ def convert_chain_id(pdb_path, chain_id):
     assert len(set([x[0] for x in chain_id_mapping])) == 1
     
     new_chain_id = chain_id_mapping[0][0]
+    print("done")
     return new_chain_id, True
 
 class BaseDataset(Dataset):
@@ -76,8 +80,7 @@ class BaseDataset(Dataset):
         # `use_sequence`` for BaseDataset is always set to True to pass sequence
         # information to models, while `use_sequence` for the model itself is 
         # False by default to disable using sequence during tokenization
-        self.use_sequence = True
-
+        self.use_sequence = True        
         # try to load pre-processed data
         target_split_file = self.get_target_file_name()
         
@@ -328,8 +331,7 @@ class BaseDataset(Dataset):
         file = os.path.join(self.PDB_DATA_DIR, f"mmcif_files/{pdb_id}.cif")
         return file
     
-    def _get_item_structural_tokens(self, index, skip_check=False):
-        
+    def _get_item_structural_tokens(self, index, skip_check=False):        
         item = self.data[index]
         if not skip_check:
             if "token_ids" in item:
@@ -348,7 +350,11 @@ class BaseDataset(Dataset):
             # use use_author_field (specified in biotite).
             # except atlas, other datasets' pdb_path is independent of chain_id; 
             # and for atlas, there is no need to transform chain_id
-            chain_id, is_changed = convert_chain_id(pdb_path, chain_id)
+            # added this
+            if (pdb_path, chain_id) in self.converted_chains:
+                chain_id, is_changed = self.converted_chains[(pdb_path, chain_id)]    
+            else:
+                chain_id, is_changed = convert_chain_id(pdb_path, chain_id) # the main speed bottleneck
         assigned_labels = item[self.target_field]
         assert pdb_chain is not None
         
@@ -394,8 +400,7 @@ class BaseDataset(Dataset):
         assert len(token_ids) == len(residue_index)
         # code compatability in case token_ids store continuous reprs
         token_ids = token_ids.detach()
-        assert len(residue_index) == len(seqs)
-        
+        assert len(residue_index) == len(seqs)        
         if self.is_global_or_local == "local":
             # align residue_index and label_residue_index, so that token_ids align with assigned_labels
             org_len = len(token_ids)
@@ -574,10 +579,19 @@ class BaseDataset(Dataset):
                 self.py_logger.info(f"Cannot load cahced tokenized data from {cache_file_name}, caching now")
         else:
             raise NotImplementedError
-                
+
+        # added, convert chains here      
+        if self.data_name != "AtlasDataset":
+            pargs = [(self.retrieve_pdb_path(sample['pdb_id'], sample['chain_id']), sample['chain_id']) for sample in self.data]
+            with mp.Pool(50) as pool:
+                converted_chains = tqdm(pool.starmap(convert_chain_id, pargs), desc="converting chains")
+            self.converted_chains = {}
+            for sample, res in zip(self.data, converted_chains):
+                pdb_path = self.retrieve_pdb_path(sample['pdb_id'], sample['chain_id'])
+                self.converted_chains[(pdb_path, sample['chain_id'])] = res
+            assert len(converted_chains) == len(self.data)
         
         self.additional_preprocessing_for_TAPE_homo(tokenizer_name)
-
         # pre-checking
         for index in tqdm(range(len(self))):
             try:

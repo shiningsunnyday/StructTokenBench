@@ -57,7 +57,7 @@ class PretrainPDBDataset(BaseDataset):
         self.seq_tokenizer = kwargs["seq_tokenizer"]
         
         if self.split in ["train", "validation"]:
-            # load pre-processed data
+            # load pre-processed data            
             target_split_file = self.get_target_file_name()
             processed_flag = os.path.exists(target_split_file)
             
@@ -67,11 +67,11 @@ class PretrainPDBDataset(BaseDataset):
                 exit(0) # only support for first time preprocessing data and then training for the pretraining data
             else:
                 self.data = torch.load(target_split_file, weights_only=False)
+                self.data = [prot for prot in self.data if len(prot['seq_ids']) > 0] # filter out empty structures
                 self.py_logger.info(f"Loading from processed file {target_split_file},"
                                 f"structured data of {len(self.data)} entries.")
         else:
             self.py_logger.info(f"Loading all test datasets")
-
             file_name = os.path.join(
                 self.data_path[:self.data_path.rfind("/data/")], 
                 f"./data/utility/{self.split.lower()}/processed_structured_esm3_tokenized_sequence"

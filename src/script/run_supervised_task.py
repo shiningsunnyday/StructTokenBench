@@ -122,10 +122,8 @@ def main(cfg):
     )
 
     # training pipeline
-    
     if not getattr(cfg, "validate_only", False) and not getattr(cfg, "test_only", False):
-        logger.info("*********** start training ***********\n\n")
-        
+        logger.info("*********** start training ***********\n\n")        
         trainer.fit(
             model=model, datamodule=datamodule,
             ckpt_path=cfg.model.ckpt_path

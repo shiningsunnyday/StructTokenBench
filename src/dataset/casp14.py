@@ -121,6 +121,12 @@ class CASP14Dataset(BaseDataset):
             # chain_id conversion is already automatically dealt with 
             # WrappedProteinChain, and produced pdb_chain
             token_ids, residue_index, seqs = self.tokenizer.encode_structure(pdb_chain, self.use_continuous, self.use_sequence) # torch.Tensors
+            out = self.tokenizer.decode_structure(token_ids)
+            chain_recon = WrappedProteinChain.from_backbone_atom_coordinates(out['bb_pred'][0, 1:-1])
+            bb_rmsd = chain_recon.rmsd(pdb_chain, only_compute_backbone_rmsd=True)
+            lddt = np.array(chain_recon.lddt_ca(pdb_chain))
+            self.data[index]["bb_rmsd"] = bb_rmsd
+            self.data[index]["lddt"] = lddt.mean()
         elif isinstance(self.tokenizer, (WrappedFoldSeekTokenizer, WrappedAIDOTokenizer, WrappedProTokensTokenizer)):
             token_ids, residue_index, seqs = self.tokenizer.encode_structure(pdb_path, chain_id, self.use_continuous, self.use_sequence)
         elif isinstance(self.tokenizer, WrappedOurPretrainedTokenizer):
@@ -128,10 +134,8 @@ class CASP14Dataset(BaseDataset):
         else:
             raise NotImplementedError
         assert len(token_ids) == len(residue_index)
-
         # select according to residue range constraints for some global tasks
         assert residue_range == [""]    
-
         # cache the tokens
         self.data[index]["token_ids"] = token_ids.to("cpu")
         self.data[index]["residue_index"] = residue_index
