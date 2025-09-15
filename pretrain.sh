@@ -11,8 +11,8 @@
 
 # for debug, run command: sbatch -p gpu_test --gres=gpu:1 -t 0-12:00 pretrain.sh
 
-if [ $# -ne 3 ]; then
-  echo "Usage: $0 {time to sleep} {codebook size} {fastdev}"
+if [ $# -ne 4 ]; then
+  echo "Usage: $0 {time to sleep} {codebook size} {fastdev} {aminoaseed|vanillavq}"
   exit 1
 fi
 
@@ -21,16 +21,31 @@ module load cuda/12.4.1-fasrc01 cudnn/9.5.1.17_cuda12-fasrc01
 export DIR=/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/StructTokenBench
 CKPT_DIR=$DIR/struct_token_bench_release_ckpt
 
-# vanillavq
-# use_linear_project=false
-# freeze_codebook=false
-# model_name="VanillaVQ"
+export TOKENIZERS_PARALLELISM=false
+export OMP_NUM_THREADS=1
+export MASTER_ADDR=127.0.0.1
+export MASTER_PORT=29527
+export NCCL_SOCKET_IFNAME=lo
+export NCCL_IB_DISABLE=1
+export NCCL_ASYNC_ERROR_HANDLING=1
+
 sleep $1 # to avoid version conflicts
 echo "sleep finish"
-# aminoaseed
-use_linear_project=true
-freeze_codebook=true
-model_name="AminoAseed"
+
+if [ "$4" = "aminoaseed" ]; then
+  # Current behavior
+  use_linear_project=true
+  freeze_codebook=true
+  model_name="AminoAseed"
+elif [ "$4" = "vanillavq" ]; then
+  # Alternative behavior commented in your block
+  use_linear_project=false
+  freeze_codebook=false
+  model_name="VanillaVQ"
+else
+  echo "Error: Invalid model parameter '$4'. Expected 'aminoaseed' or 'vanillavq'." >&2
+  exit 1
+fi
 
 warmup_step=5426
 total_step=108530
@@ -43,7 +58,6 @@ else
 fi
 
 validate_only=false
-freeze_codebook=false
 _need_init=true
 # pretrained_ckpt_path="/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/StructTokenBench/struct_token_bench_release_ckpt/codebook_512x1024-1e+19-linear-fixed-last.ckpt/checkpoint/mp_rank_00_model_states.pt" # ''
 pretrained_ckpt_path=''

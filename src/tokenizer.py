@@ -326,7 +326,6 @@ class WrappedOurPretrainedTokenizer():
         # load
         self.model = VQVAEModel(model_cfg=model_cfg)
         model_states = torch.load(pretrained_ckpt_path, map_location=self.device)["module"]
-        breakpoint()
         new_model_states = {}
         for k,v in model_states.items():
             assert k.startswith("model.")

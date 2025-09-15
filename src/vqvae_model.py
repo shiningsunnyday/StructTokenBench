@@ -799,7 +799,7 @@ class LightningVQPretrainModel(pl.LightningModule):
         self.optimizer_cfg = optimizer_cfg
         # for lm eval
         self.cwd = Path(__file__).parents[2]
-        self.lm_every = 10
+        self.lm_every = 1
         self.valid_quantized_inds = defaultdict(list) # store quant inds
         #
         self.all_split_names = all_split_names
@@ -1088,7 +1088,7 @@ class LightningVQPretrainModel(pl.LightningModule):
     def _eval_pdbs(self, epoch_dir: Path, *, sctm: bool,
                 shard_idx: int | None, num_shards: int | None,
                 out_basename: str, steal_gpu: bool,
-               timeout_s: int = 24*3600) -> dict:
+               timeout_s: int = 240*3600) -> dict:
         """
         Runs your metrics module once. If `sctm=True`, we optionally restrict the
         input set to a per-rank shard and expose only the rank's GPU to the child.
@@ -1262,10 +1262,11 @@ class LightningVQPretrainModel(pl.LightningModule):
             metrics = self._eval_pdbs(epoch_dir, sctm=False, shard_idx=None, num_shards=None, out_basename="metrics_cheap.json", steal_gpu=False)            
             for k, v in metrics.items():
                 self.log(f"lm/{k}", v, prog_bar=True, logger=True, sync_dist=False)            
+            (epoch_dir / "samples.ready").touch()
 
         self._mem(f"[{global_rank}] before sctm metrics")
-        if is_dist:
-            torch.distributed.barrier()                                    
+        while not (epoch_dir / "samples.ready").exists():
+            time.sleep(2)
         self._eval_pdbs(epoch_dir, sctm=True,
                                 shard_idx=global_rank, num_shards=world_size,
                                 out_basename=f"metrics_sctm.rank{global_rank:04d}.json",
@@ -1275,7 +1276,7 @@ class LightningVQPretrainModel(pl.LightningModule):
         # Merge SCTM shard outputs on rank 0 and log a summary
         if self.trainer.is_global_zero:
             self._mem(f"[0] before sctm merge")
-            ok = self._wait_all_sctm_done(epoch_dir, world_size, timeout_s=36*3600)  # generous
+            ok = self._wait_all_sctm_done(epoch_dir, world_size, timeout_s=240*3600)  # generous
             if not ok:
                 self.print("[SCTM] Timeout waiting for shard markers; merging what exists")
             merged = self._merge_sctm_jsons(epoch_dir, world_size)

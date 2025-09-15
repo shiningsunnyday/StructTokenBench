@@ -8,6 +8,7 @@ import numpy as np
 from einops import rearrange, einsum
 
 def get_codebook_utility(input_ids, codebook_embed, eps=1e-8):
+    breakpoint()
     index_count = torch.bincount(input_ids, minlength=len(codebook_embed))
     # normalize frequency to probs
     probs = index_count / torch.sum(index_count)

@@ -97,7 +97,6 @@ class ProteinDataModule(pl.LightningDataModule):
         world_size = torch.distributed.get_world_size()
         # dataset.shard(shard_idx=process_global_rank, num_shards=world_size)
     
-        breakpoint()
         if self.precompute_tokens:
             # precompute and cache the token ids:
             self.py_logger.info(

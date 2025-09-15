@@ -1,23 +1,35 @@
+#!/bin/bash
+#
+#SBATCH -p kempner
+#SBATCH --account kempner_mzitnik_lab
+#SBATCH -c 16 # number of cores
+#SBATCH --mem 100g # memory pool for all cores
+#SBATCH --gres=gpu # gpu
+#SBATCH -t 3-0:00 # time (D-HH:MM)
+#SBATCH -o /n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/scripts/slurm/StructTokenBench_utility.%j.out # STDOUT
+#SBATCH -e /n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/scripts/slurm/StructTokenBench_utility.%j.err # STDERR
+
+
 export DIR=/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/StructTokenBench
 ## esm
-tokenizer=WrappedESM3Tokenizer
-tokenizername=esm3
-d_model=128
-lr=0.001
-EXTRA_MODEL_ARGS=""
+# tokenizer=WrappedESM3Tokenizer
+# tokenizername=esm3
+# d_model=128
+# lr=0.001
+# EXTRA_MODEL_ARGS=""
 
 ## using VanillaVQ
-# ckpt_name="VanillaVQ"
-# path="$DIR/struct_token_bench_release_ckpt/codebook_512x1024-1e+19-PST-last.ckpt/checkpoint/mp_rank_00_model_states.pt"
-# quantizer_use_linear_project=false
+ckpt_name="VanillaVQ"
+path="$DIR/struct_token_bench_release_ckpt/codebook_512x1024-1e+19-PST-last.ckpt/checkpoint/mp_rank_00_model_states.pt"
+quantizer_use_linear_project=false
 
 # general extra arguments besides $SHARED_ARGS
-# tokenizer=WrappedOurPretrainedTokenizer
-# tokenizername=ourpretrained_${ckpt_name}
-# d_model=1024
-# lr=0.001
-# quantizer_codebook_size=512
-# EXTRA_MODEL_ARGS="tokenizer_pretrained_ckpt_path=$path tokenizer_ckpt_name=${ckpt_name} quantizer_codebook_size=$quantizer_codebook_size quantizer_codebook_embed_size=$d_model model_encoder_dout=$d_model quantizer_use_linear_project=$quantizer_use_linear_project"
+tokenizer=WrappedOurPretrainedTokenizer
+tokenizername=ourpretrained_${ckpt_name}
+d_model=1024
+lr=0.001
+quantizer_codebook_size=512
+EXTRA_MODEL_ARGS="tokenizer_pretrained_ckpt_path=$path tokenizer_ckpt_name=${ckpt_name} quantizer_codebook_size=$quantizer_codebook_size quantizer_codebook_embed_size=$d_model model_encoder_dout=$d_model quantizer_use_linear_project=$quantizer_use_linear_project"
 
 # CASP14
 target_field=null task_goal="codebook_utilization" experiment_prefix="${task_goal}_casp14"
