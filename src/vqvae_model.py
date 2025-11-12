@@ -799,7 +799,7 @@ class LightningVQPretrainModel(pl.LightningModule):
         self.optimizer_cfg = optimizer_cfg
         # for lm eval
         self.cwd = Path(__file__).parents[2]
-        self.lm_every = 1
+        self.lm_every = 1 # adjust to accelerate training
         self.valid_quantized_inds = defaultdict(list) # store quant inds
         #
         self.all_split_names = all_split_names
@@ -1222,7 +1222,7 @@ class LightningVQPretrainModel(pl.LightningModule):
             self._valid_or_test_epoch_end(getattr(self, f"{split}_step_outputs"), split=split)
             getattr(self, f"{split}_step_outputs").clear()        
         # Optional: only run every K epochs
-        if (self.current_epoch + 1) % self.lm_every != 0:
+        if getattr(self.trainer, "sanity_checking", False) or (self.current_epoch + 1) % self.lm_every != 0:
             return
         is_dist, world_size, global_rank = self._rank_world()
         train_all = self._gather_to_rank0(self.valid_quantized_inds["train"])
@@ -1283,16 +1283,12 @@ class LightningVQPretrainModel(pl.LightningModule):
             self._mem(f"[0] finish sctm merge")
             # Log whatever rollups you need; here we forward keys
             for k, v in merged.items():
-                self.log(f"lm/{k}", v, prog_bar=True, logger=True, sync_dist=False)                                      
-                
-            
+                self.log(f"lm/{k}", v, prog_bar=True, logger=True, sync_dist=False)                                                                  
         # for k, v in self.trainer.callback_metrics.items():
         #     if isinstance(v, torch.Tensor) and v.numel() == 1:
         #         print(f"[RANK {self.global_rank}] {k:<25} {v.dtype}", flush=True)    
-
         if is_dist:
-            torch.distributed.barrier()                            
-        
+            torch.distributed.barrier()                                    
         self._mem(f"[{global_rank}] finish validation_epoch_end")
 
     def on_before_optimizer_step(self, optimizer):

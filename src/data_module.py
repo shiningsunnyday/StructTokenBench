@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
-
+from pathlib import Path
 from dataset import *
 from tokenizer import *
 from esm.tokenization.sequence_tokenizer import EsmSequenceTokenizer
@@ -157,7 +157,7 @@ class ProteinDataModule(pl.LightningDataModule):
             with open(out_path, "w+") as f:
                 for item, sample in zip(dataset.data, dataset):
                     pdb_id, chain_id = item['pdb_id'], item['chain_id']
-                    path = f"/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/data/struct_token_bench/{store_dir}/{pdb_id}_{chain_id}.pdb"
+                    path = f"{Path(__file__).parents[2]}/data/struct_token_bench/{store_dir}/{pdb_id}_{chain_id}.pdb"
                     item['pdb_chain'].to_pdb(path)
                     if 'residue_index' in item:
                         if len(item['residue_index']) != len(sample[1]):
@@ -297,7 +297,7 @@ class PretrainingDataModule(pl.LightningDataModule):
         })
         dataset = eval(self.data_args.data_name)(**kwargs)
         ## DELETE THIS. for processing
-        dest_dir = f"/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/data/vqvae_pretrain/{split}"
+        dest_dir = f"{Path(__file__).parents[2]}/data/vqvae_pretrain/{split}"
         os.makedirs(dest_dir, exist_ok=True)
         if split != "train":
             count = 0

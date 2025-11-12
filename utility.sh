@@ -6,11 +6,11 @@
 #SBATCH --mem 100g # memory pool for all cores
 #SBATCH --gres=gpu # gpu
 #SBATCH -t 3-0:00 # time (D-HH:MM)
-#SBATCH -o /n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/scripts/slurm/StructTokenBench_utility.%j.out # STDOUT
-#SBATCH -e /n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/scripts/slurm/StructTokenBench_utility.%j.err # STDERR
+#SBATCH -o ../scripts/slurm/StructTokenBench_utility.%j.out # STDOUT
+#SBATCH -e ../scripts/slurm/StructTokenBench_utility.%j.err # STDERR
 
 
-export DIR=/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/StructTokenBench
+export DIR=./
 ## esm
 # tokenizer=WrappedESM3Tokenizer
 # tokenizername=esm3
