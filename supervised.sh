@@ -6,12 +6,19 @@
 #SBATCH --mem 100g # memory pool for all cores
 #SBATCH --gres=gpu:4 # gpu
 #SBATCH -t 3-0:00 # time (D-HH:MM)
-#SBATCH -o /n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/scripts/slurm/StructTokenBench_pretrain.%j.out # STDOUT
-#SBATCH -e /n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/scripts/slurm/StructTokenBench_pretrain.%j.err # STDERR
+#SBATCH -o ../scripts/slurm/StructTokenBench_pretrain.%j.out # STDOUT
+#SBATCH -e ../scripts/slurm/StructTokenBench_pretrain.%j.err # STDERR
 
 # for debug, run command: sbatch -p gpu_test --gres=gpu:1 -t 0-12:00 pretrain.sh
 
-module load cuda/12.4.1-fasrc01 cudnn/9.5.1.17_cuda12-fasrc01
+# If CUDA_MOD or CUDNN_MOD are exported in the environment, load them;
+# otherwise do nothing.
+if [[ -n "$CUDA_MOD" ]]; then
+  module load "cuda/${CUDA_MOD}"
+fi
+if [[ -n "$CUDNN_MOD" ]]; then
+  module load "cudnn/${CUDNN_MOD}"
+fi
 
 export DIR='./'
 CKPT_DIR=$DIR/struct_token_bench_release_ckpt

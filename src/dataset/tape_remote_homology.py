@@ -39,7 +39,6 @@ class TapeRemoteHomologyDataset(RemoteHomologyDataset, BaseDataset):
             tokenizer=kwargs["tokenizer"], in_memory=kwargs["in_memory"])
         # the current self.data is a LMDBDataset
         # type(self.data): <class 'tape.datasets.LMDBDataset'>
-        # https://github.com/songlab-cal/tape/blob/6d345c2b2bbf52cd32cf179325c222afd92aec7e/tape/datasets.py#L115C7-L115C18
         # transform it to list of dicts
         new_data = []
         for i in range(len(self.data)):

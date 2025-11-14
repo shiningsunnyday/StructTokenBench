@@ -128,8 +128,6 @@ def calculate_tm_rmsd_score(mobile_chain, target_chain):
     return res.tm_norm_chain1, res.tm_norm_chain2, res.rmsd
 
 def pad_structures(items, constant_value=0, dtype=None, truncation_length=600, pad_length=None):
-    """Reference to TAPE https://github.com/songlab-cal/tape/blob/6d345c2b2bbf52cd32cf179325c222afd92aec7e/tape/datasets.py#L37
-    """
     batch_size = len(items)
     if isinstance(items[0], List):
         items = [torch.tensor(x) for x in items]
@@ -251,8 +249,6 @@ def get_cosine_schedule_with_warmup(
 
 
 def accuracy(logits, labels, ignore_index: int = -100):
-    """Adapt from https://github.com/songlab-cal/tape/blob/6d345c2b2bbf52cd32cf179325c222afd92aec7e/tape/models/modeling_utils.py#L623C1-L628C64
-    """
     with torch.no_grad():
         valid_mask = (labels != ignore_index)
         predictions = logits.float().argmax(-1)
