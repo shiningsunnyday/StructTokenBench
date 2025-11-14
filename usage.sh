@@ -1,4 +1,4 @@
-export DIR=/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/StructTokenBench
+export DIR='./'
 ## esm
 # tokenizer=WrappedESM3Tokenizer
 # tokenizername=esm3

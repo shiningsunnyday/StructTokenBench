@@ -1,4 +1,4 @@
-export DIR=/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/StructTokenBench
+export DIR='./'
 tokenizer_list=(WrappedESM3Tokenizer WrappedFoldSeekTokenizer WrappedProTokensTokenizer WrappedProteinMPNNTokenizer WrappedMIFTokenizer WrappedCheapS1D64Tokenizer WrappedAIDOTokenizer)
 tokenizer_name_list=(esm3 foldseek protokens proteinmpnn mif cheapS1D64 aido)
 dmodel_list=(128 2 32 128 256 64 384)

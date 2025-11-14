@@ -13,7 +13,7 @@
 
 module load cuda/12.4.1-fasrc01 cudnn/9.5.1.17_cuda12-fasrc01
 
-export DIR=/n/holylfs06/LABS/mzitnik_lab/Users/msun415/foldingdiff/StructTokenBench
+export DIR='./'
 CKPT_DIR=$DIR/struct_token_bench_release_ckpt
 
 ## esm
