@@ -799,7 +799,7 @@ class LightningVQPretrainModel(pl.LightningModule):
         self.optimizer_cfg = optimizer_cfg
         # for lm eval
         self.cwd = Path(__file__).parents[2]
-        self.lm_every = 1 # adjust to accelerate training
+        self.lm_every = 35 # adjust to accelerate training
         self.valid_quantized_inds = defaultdict(list) # store quant inds
         #
         self.all_split_names = all_split_names
